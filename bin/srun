@@ -1,2 +1,2 @@
 #!/bin/sh
-docker exec -ti slurmctld srun "$@"
+docker exec -i slurmctld srun "$@"
