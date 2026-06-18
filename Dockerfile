@@ -273,6 +273,31 @@ RUN ARCH=$(uname -m) \
 
 COPY --from=builder /root/rpmbuild/RPMS/*/*.rpm /tmp/rpms/
 
+# Install enroot
+# https://github.com/NVIDIA/enroot/blob/v3.1.0/doc/installation.md#from-source
+RUN set -ex \
+    && dnf -y install dnf-plugins-core epel-release \
+    && dnf config-manager --set-enabled crb \
+    && dnf -y install \
+       git \
+       gcc \
+       make \
+       libcap \
+       libtool \
+       automake \
+       jq \
+       squashfs-tools \
+       parallel \
+       zstd \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+RUN git clone --recurse-submodules https://github.com/NVIDIA/enroot.git
+RUN cd enroot \
+    && make install \
+    && make setcap \
+    && cd ..
+
 # Install Slurm RPMs
 RUN set -ex \
     && dnf -y install /tmp/rpms/slurm-[0-9]*.rpm \
@@ -287,6 +312,15 @@ RUN set -ex \
     && cp /tmp/rpms/slurm-[0-9]*.rpm /tmp/rpms/slurm-contribs-*.rpm /tmp/rpms/slurm-devel-*.rpm /var/cache/slurm-rpms/ \
     && rm -rf /tmp/rpms \
     && dnf clean all
+
+# Install pyxis
+# https://github.com/nvidia/pyxis#with-make-install
+RUN git clone https://github.com/NVIDIA/pyxis.git
+RUN cd pyxis \
+    && make install \
+    && mkdir -p /etc/slurm/plugstack.conf.d/ \
+    && ln -s /usr/local/share/pyxis/pyxis.conf /etc/slurm/plugstack.conf.d/pyxis.conf \
+    && cd ..
 
 # Create users, generate munge key, and set up directories
 RUN set -x \
@@ -324,6 +358,7 @@ RUN set -ex \
          cp /tmp/slurm-config/25.11/slurm.conf /etc/slurm/slurm.conf; \
        fi \
     && cp /tmp/slurm-config/common/slurmdbd.conf /etc/slurm/slurmdbd.conf \
+    && cp /tmp/slurm-config/common/plugstack.conf /etc/slurm/plugstack.conf \
     && cp /tmp/slurm-config/common/job_submit.lua /etc/slurm/job_submit.lua \
     && if [ -f "/tmp/slurm-config/${MAJOR_MINOR}/cgroup.conf" ]; then \
          echo "Using version-specific cgroup.conf for ${MAJOR_MINOR}"; \
@@ -340,7 +375,8 @@ RUN set -ex \
        else \
          echo "GPU support disabled, skipping gres.conf"; \
        fi \
-    && chown slurm:slurm /etc/slurm/slurm.conf /etc/slurm/cgroup.conf /etc/slurm/slurmdbd.conf /etc/slurm/job_submit.lua \
+    && chown slurm:slurm /etc/slurm/slurm.conf /etc/slurm/cgroup.conf /etc/slurm/slurmdbd.conf /etc/slurm/job_submit.lua /etc/slurm/plugstack.conf \
+    && chown -R slurm:slurm /etc/slurm/plugstack.conf.d \
     && chmod 644 /etc/slurm/slurm.conf /etc/slurm/cgroup.conf \
     && chmod 600 /etc/slurm/slurmdbd.conf \
     && rm -rf /tmp/slurm-config
