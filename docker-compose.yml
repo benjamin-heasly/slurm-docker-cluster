@@ -135,6 +135,7 @@ services:
       - home_ood:/home/ood  # shared with OOD for job I/O
       - opt_modulefiles:/opt/modulefiles
       - spack_root:/opt/spack
+      - /tmp:/tmp
     expose:
       - "6818"
     depends_on:
